@@ -24,6 +24,8 @@
     <ClCompile Include="..\..\source\repos\Gestural_Interface\Shader.cpp" />
     <ClCompile Include="..\..\source\repos\Gestural_Interface\ShaderPipeline.cpp" />
     <ClCompile Include="BodyBasics.cpp" />
+    <ClCompile Include="PlyFile.cpp" />
+    <ClCompile Include="rply.c" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="app.ico" />
@@ -38,7 +40,10 @@
     <ClInclude Include="..\..\source\repos\Gestural_Interface\ShaderPipeline.h" />
     <ClInclude Include="..\..\source\repos\Gestural_Interface\utils.h" />
     <ClInclude Include="BodyBasics.h" />
+    <ClInclude Include="PlyFile.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="rply.h" />
+    <ClInclude Include="rplyfile.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

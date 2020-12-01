@@ -66,7 +66,7 @@ CBodyBasics::CBodyBasics() :
         m_fFreq = double(qpf.QuadPart);
     }
     
-  //  app = new GraphicsApplication(1080, 720);
+   // app = new GraphicsApplication(1080, 720);
     
 
 }
@@ -308,7 +308,7 @@ LRESULT CALLBACK CBodyBasics::DlgProc(HWND hWnd, UINT message, WPARAM wParam, LP
             m_hWnd = hWnd;
 
             // Init Direct2D
-            D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &m_pD2DFactory);
+           D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &m_pD2DFactory);
 
             // Get and initialize the default Kinect sensor
             InitializeDefaultSensor();
@@ -408,6 +408,50 @@ bool CBodyBasics::isPointing(Eigen::Vector3f current, uint32_t index) {
     }
 }
 
+void CBodyBasics::savePlaneToPly(int samples, IBody* pBody) {
+    std::vector<Eigen::Vector3f> planePoints;
+    Eigen::Vector4f coeffs = screenPlane.coeffs();
+    float maxValue = 0;
+    float index = 0;
+    for (int i = 0; i < 3; i++) {
+        if (abs(coeffs(i)) > maxValue) {
+            maxValue = abs(coeffs(i));
+            index = i;
+        }
+    }
+
+    Eigen::Vector3f i = Eigen::Vector3f(coeffs(3) / coeffs(index), 0, 0);
+    Eigen::Vector3f j = i.cross(screenPlane.normal());
+
+    //compute parametric plane form
+
+    for (int x = 0; x < samples; x+= 0.1) {
+        for (int y = 0; y < samples; y+=0.1) {
+            Eigen::Vector3f point = (x) * i + (y) * j;
+            glm::vec3 glPoint(point.x(), point.y(), point.z());
+            planePoints.push_back(point);
+        }
+    }
+
+    std::vector<Vertex> vertices;
+    for (int i = 0; i < planePoints.size(); i++) {
+        Eigen::Vector3d vert = planePoints[i].cast<double>();
+        Vertex v = { vert, Eigen::Vector3i(255, 0, 0), Eigen::Vector3d(0,0,0) };
+        vertices.push_back(v);
+    }
+
+    Joint joints[JointType_Count];
+    HRESULT hr = pBody->GetJoints(_countof(joints), joints);
+
+    for (int i = 0; i < JointType_Count; i++) {
+        Eigen::Vector3d joint(joints[i].Position.X, joints[i].Position.Y, joints[i].Position.Z);
+        Vertex v = { joint, Eigen::Vector3i(0, 255, 0), Eigen::Vector3d(0,0,0) };
+        vertices.push_back(v);
+    }
+
+    PlyFile plane(vertices);
+    plane.write("Plane.ply");
+}
 
 void CBodyBasics::approximateScreenPlane(uint32_t index) {
 
@@ -444,7 +488,7 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
 
     Eigen::Matrix3f toinvert = lSquares.transpose() * lSquares;
     Eigen::Vector3f normal = toinvert.inverse() * lSquares.transpose() * B;
-    screenPlane = Eigen::Hyperplane<float, 3>(normal, 0);
+    screenPlane = Eigen::Hyperplane<float, 3>(normal.normalized(), normal.norm());
 
     //screenPlane = Eigen::Hyperplane<float, 3>::Through(x_1, x_2);
     pointingInfo[index].screenPlaneFound = true;
@@ -537,7 +581,7 @@ void CBodyBasics::calibration(IBody* pBody, uint32_t i) {
             clock_t end = clock();
             double elapsed_secs = double(end - pointingInfo[i].beginTime) / CLOCKS_PER_SEC;
             Eigen::Vector3f e = direction - *pointingInfo[i].startingPoints;
-            if ((elapsed_secs >= 2) && (abs(e.norm()) < 0.05)) {
+            if ((elapsed_secs >= 3) && (abs(e.norm()) < 0.05)) {
                 OutputDebugString(L"\n\nPointed!\n\n");
                 pointingInfo[i].firstPointer = false;
                 firstPoint = false;
@@ -558,7 +602,7 @@ void CBodyBasics::calibration(IBody* pBody, uint32_t i) {
                     pointingInfo[i].calibrated = true;
                 }
             }
-            else if (elapsed_secs > 2) {
+            else if (elapsed_secs > 3) {
                 pointingInfo[i].firstPointer = false;
                 pointingInfo[i].beginTime = clock();
             }
@@ -592,7 +636,10 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
                     }
                     //find the intersection of the pointing person with the screen plane
                     findPointerInPlane(pBody, i);
-
+                    if (!savePlane) {
+                        savePlaneToPly(60, pBody);
+                        savePlane = true;
+                    }
                     
                 }
             }

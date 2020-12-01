@@ -16,6 +16,8 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include "GraphicsApplication.h"
+#include "Plyfile.h"
+
 
 struct PointingInfo {
     Eigen::Vector3f *previousDirection = nullptr;
@@ -88,6 +90,7 @@ private:
     std::vector<std::vector<Eigen::Vector3f>> cornersForFrames;
     Eigen::Vector3f* previous = nullptr;
     bool firstPoint = false;
+    bool savePlane = false;
     Eigen::Vector3f* startingPoint = nullptr;
     INT64 startTime = 0;
     clock_t beginTime;
@@ -111,6 +114,7 @@ private:
     ID2D1SolidColorBrush*   m_pBrushHandOpen;
     ID2D1SolidColorBrush*   m_pBrushHandLasso;
 
+    void                    savePlaneToPly(int samples, IBody* pBody);
     void                    calibration(IBody* pBody, uint32_t index);
     void                    approximateScreenPlane(uint32_t index);
     void                    findPointerInPlane(IBody* pBody, uint32_t index);
