@@ -558,7 +558,30 @@ void CBodyBasics::findIntersections(uint32_t index) {
         //find the lest squares point for this set of lines
     }
     cornersForFrames[index] = cornerSolutions;
+} 
+void CBodyBasics::writeScreenLSQ(IBody* pBody, uint32_t index) {
+    std::vector<Vertex> things;
+
+
+    for (int i = 0;i < cornersForFrames[index].size(); i++) {
+        Eigen::Vector3d vert = cornersForFrames[index][i].cast<double>();
+        Vertex v = { vert, Eigen::Vector3i(0,0, 255), Eigen::Vector3d(0,0,0) };
+        things.push_back(v);
+    }
+
+    Joint joints[JointType_Count];
+    HRESULT hr = pBody->GetJoints(_countof(joints), joints);
+
+    for (int i = 0; i < JointType_Count; i++) {
+        Eigen::Vector3d joint(joints[i].Position.X, joints[i].Position.Y, joints[i].Position.Z);
+        Vertex v = { joint, Eigen::Vector3i(0, 255, 0), Eigen::Vector3d(0,0,0) };
+        things.push_back(v);
+    }
+
+    PlyFile corners(things);
+    corners.write("Corners.ply");
 }
+
 
 void CBodyBasics::calibration(IBody* pBody, uint32_t i) {
     Joint joints[JointType_Count];
@@ -571,6 +594,13 @@ void CBodyBasics::calibration(IBody* pBody, uint32_t i) {
     bool point = isPointing(direction, i);
 
     if (point && pointingInfo[i].firstPointer == false) {
+       /** switch (i % 4) {
+        case 0:
+            OutputDebugString(L"Point in the top right");
+            break;
+        case 1:
+            OutputDebugString(L"Point to the top right corner of the screen");*/
+        
         pointingInfo[i].firstPointer = true;
         pointingInfo[i].startingPoints = new Eigen::Vector3f(direction);
         pointingInfo[i].beginTime = clock();
@@ -632,7 +662,7 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
                         findIntersections(i);
                         //followed by find screen plane
                         approximateScreenPlane(i);
-                        
+                        writeScreenLSQ(pBody, i);
                     }
                     //find the intersection of the pointing person with the screen plane
                     findPointerInPlane(pBody, i);

@@ -114,6 +114,7 @@ private:
     ID2D1SolidColorBrush*   m_pBrushHandOpen;
     ID2D1SolidColorBrush*   m_pBrushHandLasso;
 
+    void                    writeScreenLSQ(IBody* pBody, uint32_t index);
     void                    savePlaneToPly(int samples, IBody* pBody);
     void                    calibration(IBody* pBody, uint32_t index);
     void                    approximateScreenPlane(uint32_t index);
