@@ -3,7 +3,6 @@
 //     Copyright (c) Microsoft Corporation.  All rights reserved.
 // </copyright>
 //------------------------------------------------------------------------------
-
 #include "stdafx.h"
 #include <strsafe.h>
 #include "resource.h"
@@ -14,6 +13,7 @@ static const float c_JointThickness = 3.0f;
 static const float c_TrackedBoneThickness = 6.0f;
 static const float c_InferredBoneThickness = 1.0f;
 static const float c_HandSize = 30.0f;
+
 
 /// <summary>
 /// Entry point for the application
@@ -389,6 +389,18 @@ std::wstring s2ws(const std::string& s)
     return r;
 }
 
+static std::string toString(const Eigen::MatrixXf& mat) {
+    std::stringstream ss;
+    ss << mat;
+    return ss.str();
+}
+
+void printMat(const Eigen::MatrixXf& mat) {
+    std::string ma = toString(mat);
+    std::wstring st = s2ws(ma);
+    LPCWSTR s = st.c_str();
+    OutputDebugString(s);
+}
 bool CBodyBasics::isPointing(Eigen::Vector3f current, uint32_t index) {
     if (pointingInfo[index].previousDirection == nullptr) {
         pointingInfo[index].previousDirection = new Eigen::Vector3f(current);
@@ -407,6 +419,8 @@ bool CBodyBasics::isPointing(Eigen::Vector3f current, uint32_t index) {
 
     }
 }
+
+
 
 void CBodyBasics::savePlaneToPly(int samples, IBody* pBody) {
     std::vector<Eigen::Vector3f> planePoints;
@@ -534,6 +548,13 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     OutputDebugString(re_index);
 }
 
+void eigenToString(const Eigen::MatrixXf mat) {
+    std::stringstream ss;
+    ss << mat;
+    std::wstring index_w = s2ws(ss.str());
+    LPCWSTR re_index = index_w.c_str();
+    OutputDebugString(re_index);
+}
 //solve for the closest point to a set of lines using least squares -- we use this as our corner.
 void CBodyBasics::findIntersections(uint32_t index) {
     //solve for intersections of   
@@ -544,19 +565,57 @@ void CBodyBasics::findIntersections(uint32_t index) {
 
     //double check this works later
     //always 4 directions from the user's reference frame
+    std::vector<Vertex> vertices;
     for (size_t j = 0; j < 4; j++) {
-        Eigen::Matrix3f e = Eigen::Matrix3f::Identity();
+        Eigen::MatrixXf e = Eigen::Matrix3f::Identity();
         Eigen::Vector3f pointSum = Eigen::Vector3f::Zero();
         for (size_t i = 0; i < pointingInfo[index].directions.size(); i++) {
-            Eigen::Matrix3f outerProduct = pointingInfo[index].directions[i][j] * pointingInfo[index].directions[i][j].transpose();
+            for (float p = -10; p < 10; p += 0.1) {
+                Eigen::Vector3d q = pointingInfo[index].directions[i][j].cast<double>() * p + pointingInfo[index].points[i][j].cast<double>();
+                Eigen::Vector3i colour = Eigen::Vector3i::Zero();
+                switch (j) {
+                case 0:
+                    colour.x() = 255;
+                    break;
+                case 1:
+                    colour.y() = 255;
+                    break;
+                case 2:
+                    colour.z() = 255;
+                    break;
+                case 3:
+                    colour.x() = 255;
+                    colour.y() = 255;
+                    colour.z() = 255;
+                    break;
+                default:
+                    break;
+                }
+                Vertex v = { q, colour, Eigen::Vector3d(0,0,0) };
+                vertices.push_back(v);
+            }
+            Eigen::Vector3f directionNorm = pointingInfo[index].directions[i][j].normalized();
+           // directionNorm = directionNorm.normalized();
+            //Eigen::Matrix3f outerProduct = pointingInfo[index].directions[i][j] * pointingInfo[index].directions[i][j].transpose();
+            Eigen::MatrixXf outerProduct = directionNorm * directionNorm.transpose();
+            Eigen::MatrixXf I_e = Eigen::Matrix3f::Identity();
+            I_e -= outerProduct;
             e -= outerProduct;
-            pointSum += pointingInfo[index].points[i][j];
+            pointSum += I_e*pointingInfo[index].points[i][j];
         }
       //  Eigen::Matrix3f inverse = e.inverse();
         Eigen::Vector3f x = e.inverse() * pointSum;
-        cornerSolutions.push_back(x);
-        //find the lest squares point for this set of lines
+            
+        Eigen::VectorXf sol = e.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(pointSum);
+        OutputDebugString(L"Printing ith set of solutions \n");
+        printMat(sol);
+        OutputDebugString(L"Printed\n");
+        cornerSolutions.push_back(sol);
+        //find the least squares point for this set of lines
     }
+
+    PlyFile p(vertices);
+    p.write("LineSystem.ply");
     cornersForFrames[index] = cornerSolutions;
 } 
 void CBodyBasics::writeScreenLSQ(IBody* pBody, uint32_t index) {

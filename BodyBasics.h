@@ -12,7 +12,6 @@
 #include <glm/glm.hpp>
 #include <ctime>
 #include <vector>
-#include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include "GraphicsApplication.h"
