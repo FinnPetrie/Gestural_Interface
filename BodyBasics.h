@@ -14,6 +14,7 @@
 #include <vector>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <Eigen/SVD>
 #include "GraphicsApplication.h"
 #include "Plyfile.h"
 
@@ -28,6 +29,7 @@ struct PointingInfo {
     uint32_t index;
     std::vector<std::vector<Eigen::Vector3f>> points;
     std::vector<std::vector<Eigen::Vector3f>> directions;
+    std::vector<std::vector<Eigen::Vector3f>> secondaryPoints;
 
 };
 
@@ -88,6 +90,7 @@ private:
     std::vector<PointingInfo> pointingInfo;
     std::vector<std::vector<Eigen::Vector3f>> cornersForFrames;
     Eigen::Vector3f* previous = nullptr;
+    Eigen::Vector3f centroid;
     bool firstPoint = false;
     bool savePlane = false;
     Eigen::Vector3f* startingPoint = nullptr;

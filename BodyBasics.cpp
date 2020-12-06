@@ -137,6 +137,7 @@ int CBodyBasics::Run(HINSTANCE hInstance, int nCmdShow)
     cornersForFrames.resize(BODY_COUNT);
     for (size_t i = 0; i < BODY_COUNT; i++) {
         pointingInfo[i].points.resize(3);
+        pointingInfo[i].secondaryPoints.resize(3);
 
         pointingInfo[i].directions.resize(3);
         cornersForFrames[i].resize(4);
@@ -439,9 +440,9 @@ void CBodyBasics::savePlaneToPly(int samples, IBody* pBody) {
 
     //compute parametric plane form
 
-    for (int x = 0; x < samples; x+= 0.1) {
-        for (int y = 0; y < samples; y+=0.1) {
-            Eigen::Vector3f point = (x) * i + (y) * j;
+    for (float x = -1; x < 1; x+= 0.1) {
+        for (float y = -1; y < 1; y+=0.1) {
+            Eigen::Vector3f point = (x) * i.normalized() + (y) * j.normalized();
             glm::vec3 glPoint(point.x(), point.y(), point.z());
             planePoints.push_back(point);
         }
@@ -459,7 +460,7 @@ void CBodyBasics::savePlaneToPly(int samples, IBody* pBody) {
 
     for (int i = 0; i < JointType_Count; i++) {
         Eigen::Vector3d joint(joints[i].Position.X, joints[i].Position.Y, joints[i].Position.Z);
-        Vertex v = { joint, Eigen::Vector3i(0, 255, 0), Eigen::Vector3d(0,0,0) };
+        Vertex v = { joint, Eigen::Vector3i(255, 0, 255), Eigen::Vector3d(0,0,0) };
         vertices.push_back(v);
     }
 
@@ -474,8 +475,66 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
     Eigen::Vector3f p_2 = cornersForFrames[index][1];
     Eigen::Vector3f p_3 = cornersForFrames[index][2];
 
+    Eigen::Vector3d cen = Eigen::Vector3d::Zero();
 
-    Eigen::Vector3f x_1 = p_2 - p_1;
+    for (int i = 0; i < cornersForFrames[index].size(); i++) {
+        cen += cornersForFrames[index][i].cast<double>();
+    }
+    cen /= cornersForFrames[index].size();
+    centroid = cen.cast<float>();
+    Eigen::Matrix3Xd corners(3, cornersForFrames[index].size());
+    for (int i = 0; i < cornersForFrames[index].size(); i++) {
+        Eigen::Vector3d corner_prime = cornersForFrames[index][i].cast<double>() - cen;
+        OutputDebugString(L"Printing vector: \n\n\n");
+        printMat(corner_prime.cast<float>());
+        OutputDebugString(L"\n\n\n");
+
+        corners.col(i) = corner_prime;
+    }
+
+    OutputDebugString(L"Matrix for SVD\n\n");
+    std::stringstream ss;
+    ss << corners;
+    std::wstring index_w = s2ws(ss.str());
+    LPCWSTR re_index = index_w.c_str();
+    OutputDebugString(re_index);
+
+
+   Eigen::JacobiSVD<Eigen::Matrix3Xd> svd = corners.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::MatrixXd V = svd.matrixV();
+    Eigen::MatrixXd U = svd.matrixU();
+    OutputDebugString(L"Matrix V\n");
+    printMat(V.cast<float>());
+    OutputDebugString(L"\n");
+
+    OutputDebugString(L"Matrix U: \n");
+    printMat(U.cast<float>());
+    OutputDebugString(L"\n");
+    screenPlane = Eigen::Hyperplane<float, 3>::Through(U.col(0).cast<float>(), U.col(1).cast<float>());
+    pointingInfo[index].screenPlaneFound = true;
+
+
+    Eigen::Vector3f i = U.col(0).cast<float>();
+    Eigen::Vector3f j = U.col(1).cast<float>();
+    std::vector<Eigen::Vector3f> planePoints;
+    for (float x = -1; x < 1; x += 0.1) {
+        for (float y = -1; y < 1; y += 0.1) {
+            Eigen::Vector3f point = (x)*i.normalized() + (y)*j + centroid;
+            glm::vec3 glPoint(point.x(), point.y(), point.z());
+            planePoints.push_back(point);
+        }
+    }
+
+    std::vector<Vertex> vertices;
+    for (int i = 0; i < planePoints.size(); i++) {
+        Eigen::Vector3d vert = planePoints[i].cast<double>();
+        Vertex v = { vert, Eigen::Vector3i(255, 0, 0), Eigen::Vector3d(0,0,0) };
+        vertices.push_back(v);
+    }
+
+    PlyFile p(vertices);
+    p.write("Plane.ply");
+    /*Eigen::Vector3f x_1 = p_2 - p_1;
     Eigen::Vector3f x_2 = p_3 - p_1;
 
     Eigen::Matrix3f lSquares = Eigen::Matrix3f::Zero();
@@ -497,15 +556,15 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
         B.x() += corner.x() * corner.z();
         B.y() += corner.y() * corner.z();
         B.z() += corner.z();
+        */
+    
 
-    }
-
-    Eigen::Matrix3f toinvert = lSquares.transpose() * lSquares;
+    /*Eigen::Matrix3f toinvert = lSquares.transpose() * lSquares;
     Eigen::Vector3f normal = toinvert.inverse() * lSquares.transpose() * B;
     screenPlane = Eigen::Hyperplane<float, 3>(normal.normalized(), normal.norm());
 
     //screenPlane = Eigen::Hyperplane<float, 3>::Through(x_1, x_2);
-    pointingInfo[index].screenPlaneFound = true;
+    pointingInfo[index].screenPlaneFound = true;*/
     //compute plane equation
     //igen::Hyperplane plane = Eigen::Hyperplane::Through(x_1, x_2);
     
@@ -567,11 +626,13 @@ void CBodyBasics::findIntersections(uint32_t index) {
     //always 4 directions from the user's reference frame
     std::vector<Vertex> vertices;
     for (size_t j = 0; j < 4; j++) {
-        Eigen::MatrixXf e = Eigen::Matrix3f::Identity();
+        Eigen::MatrixXf e_sum = Eigen::Matrix3f::Zero();
         Eigen::Vector3f pointSum = Eigen::Vector3f::Zero();
         for (size_t i = 0; i < pointingInfo[index].directions.size(); i++) {
+            Eigen::Vector3f directionNorm = pointingInfo[index].directions[i][j].normalized();
+
             for (float p = -10; p < 10; p += 0.1) {
-                Eigen::Vector3d q = pointingInfo[index].directions[i][j].cast<double>() * p + pointingInfo[index].points[i][j].cast<double>();
+                Eigen::Vector3d q = directionNorm.cast<double>() * p + pointingInfo[index].points[i][j].cast<double>();
                 Eigen::Vector3i colour = Eigen::Vector3i::Zero();
                 switch (j) {
                 case 0:
@@ -594,19 +655,22 @@ void CBodyBasics::findIntersections(uint32_t index) {
                 Vertex v = { q, colour, Eigen::Vector3d(0,0,0) };
                 vertices.push_back(v);
             }
-            Eigen::Vector3f directionNorm = pointingInfo[index].directions[i][j].normalized();
+           // Eigen::Vector3f directionNorm = pointingInfo[index].directions[i][j].normalized();
            // directionNorm = directionNorm.normalized();
             //Eigen::Matrix3f outerProduct = pointingInfo[index].directions[i][j] * pointingInfo[index].directions[i][j].transpose();
             Eigen::MatrixXf outerProduct = directionNorm * directionNorm.transpose();
             Eigen::MatrixXf I_e = Eigen::Matrix3f::Identity();
             I_e -= outerProduct;
-            e -= outerProduct;
-            pointSum += I_e*pointingInfo[index].points[i][j];
+            e_sum += I_e;
+            //e -= outerProduct;
+            pointSum += I_e*pointingInfo[index].secondaryPoints[i][j];
         }
       //  Eigen::Matrix3f inverse = e.inverse();
-        Eigen::Vector3f x = e.inverse() * pointSum;
+        Eigen::Vector3f x = e_sum.inverse() * pointSum;
             
-        Eigen::VectorXf sol = e.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(pointSum);
+        Eigen::VectorXf sol = e_sum.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(pointSum);
+        Vertex v = { sol.cast<double>(), Eigen::Vector3i(255, 255, 0), Eigen::Vector3d(0,0,0) };
+        vertices.push_back(v);
         OutputDebugString(L"Printing ith set of solutions \n");
         printMat(sol);
         OutputDebugString(L"Printed\n");
@@ -683,6 +747,8 @@ void CBodyBasics::calibration(IBody* pBody, uint32_t i) {
                     //push the current pointing direction to the corner vector
                     pointingInfo[i].points[pointingInfo[i].index].push_back(leftArm);
                     pointingInfo[i].directions[pointingInfo[i].index].push_back(direction);
+                    pointingInfo[i].secondaryPoints[pointingInfo[i].index].push_back(leftElbow);
+
                     if (pointingInfo[i].directions[pointingInfo[i].index].size() >= 4) {
                         pointingInfo[i].index += 1;
                     }
@@ -725,8 +791,10 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
                     }
                     //find the intersection of the pointing person with the screen plane
                     findPointerInPlane(pBody, i);
+                    OutputDebugString(L"Finding plane");
                     if (!savePlane) {
-                        savePlaneToPly(60, pBody);
+                        
+                       // savePlaneToPly(60, pBody);
                         savePlane = true;
                     }
                     
