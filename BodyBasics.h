@@ -17,6 +17,10 @@
 #include <Eigen/SVD>
 #include "GraphicsApplication.h"
 #include "Plyfile.h"
+#include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+
 
 
 struct PointingInfo {
@@ -105,7 +109,7 @@ private:
 
     // Direct2D
     ID2D1Factory*           m_pD2DFactory;
-
+    cv::Mat cvWindow;
     // Body/hand drawing
     ID2D1HwndRenderTarget*  m_pRenderTarget;
     ID2D1SolidColorBrush*   m_pBrushJointTracked;
@@ -115,6 +119,7 @@ private:
     ID2D1SolidColorBrush*   m_pBrushHandClosed;
     ID2D1SolidColorBrush*   m_pBrushHandOpen;
     ID2D1SolidColorBrush*   m_pBrushHandLasso;
+    ID2D1SolidColorBrush*   m_intersectionPointerBrush;
 
     void                    writeScreenLSQ(IBody* pBody, uint32_t index);
     void                    savePlaneToPly(int samples, IBody* pBody);

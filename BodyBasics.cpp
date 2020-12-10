@@ -513,6 +513,27 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
     screenPlane = Eigen::Hyperplane<float, 3>::Through(U.col(0).cast<float>(), U.col(1).cast<float>());
     pointingInfo[index].screenPlaneFound = true;
 
+    //compute rotation matrix
+    Eigen::Matrix3f rotationMat = Eigen::Matrix3f::Identity();
+    Eigen::Vector4f coeffs = screenPlane.coeffs();
+    
+    float aSquared = pow(coeffs.x(), 2);
+    float bSquared = pow(coeffs.y(), 2);
+    float cSquared = pow(coeffs.z(), 2);
+    float cosTheta = coeffs.z() / (sqrt(aSquared + bSquared + cSquared));
+    float sinTheta = sqrt((aSquared + bSquared) / (aSquared + bSquared + cSquared));
+    float uOne = coeffs.y() / (sqrt(aSquared + bSquared + cSquared));
+    float uTwo = -coeffs.x() / (sqrt(aSquared + bSquared + cSquared));
+
+
+    //need to also translate the pal
+    rotationMat << cosTheta + uOne * uOne * (1 - cosTheta), uOne* uTwo* (1 - cosTheta), uTwo* sinTheta,
+        uOne* uTwo* (1 - cosTheta), cosTheta* uTwo* uTwo* (1 - cosTheta), -uOne * sinTheta,
+        -uTwo * sinTheta, uOne* sinTheta, cosTheta;
+
+
+    
+
 
     Eigen::Vector3f i = U.col(0).cast<float>();
     Eigen::Vector3f j = U.col(1).cast<float>();
@@ -531,44 +552,10 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
         Vertex v = { vert, Eigen::Vector3i(255, 0, 0), Eigen::Vector3d(0,0,0) };
         vertices.push_back(v);
     }
-
+    
     PlyFile p(vertices);
     p.write("Plane.ply");
-    /*Eigen::Vector3f x_1 = p_2 - p_1;
-    Eigen::Vector3f x_2 = p_3 - p_1;
 
-    Eigen::Matrix3f lSquares = Eigen::Matrix3f::Zero();
-    Eigen::Vector3f B = Eigen::Vector3f::Zero();
-    std::vector<float> mat;
-    mat.resize(9);
-    for (int i = 0; i < 4; i++) {
-        Eigen::Vector3f corner = cornersForFrames[index][i];
-        lSquares(0, 0) += corner.x() * corner.x();
-        lSquares(0, 1) += corner.x() * corner.y();
-        lSquares(0, 2) += corner.x();
-        lSquares(1, 0) += corner.x() * corner.y();
-        lSquares(1, 1) += corner.y() * corner.y();
-        lSquares(1, 2) += corner.y();
-        lSquares(2, 0) += corner.x();
-        lSquares(2, 1) += corner.y();
-        lSquares(2, 2) += 1;
-
-        B.x() += corner.x() * corner.z();
-        B.y() += corner.y() * corner.z();
-        B.z() += corner.z();
-        */
-    
-
-    /*Eigen::Matrix3f toinvert = lSquares.transpose() * lSquares;
-    Eigen::Vector3f normal = toinvert.inverse() * lSquares.transpose() * B;
-    screenPlane = Eigen::Hyperplane<float, 3>(normal.normalized(), normal.norm());
-
-    //screenPlane = Eigen::Hyperplane<float, 3>::Through(x_1, x_2);
-    pointingInfo[index].screenPlaneFound = true;*/
-    //compute plane equation
-    //igen::Hyperplane plane = Eigen::Hyperplane::Through(x_1, x_2);
-    
-    // Eigen::Hyperplane e = Eigen::Hyperplane::Through(x_1, x_2);
 
 }
 
@@ -605,18 +592,19 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     std::wstring index_w = s2ws(ss.str());
     LPCWSTR re_index = index_w.c_str();
     OutputDebugString(re_index);
-}
+    float x = intersection.x();
+    float y = intersection.y();
+    D2D1_POINT_2F point = D2D1::Point2F(x, y);
+    D2D1_ELLIPSE ellipse = D2D1::Ellipse(point, 1, 1);
+    m_pRenderTarget->BeginDraw();
+    //m_pRenderTarget->Clear();
 
-void eigenToString(const Eigen::MatrixXf mat) {
-    std::stringstream ss;
-    ss << mat;
-    std::wstring index_w = s2ws(ss.str());
-    LPCWSTR re_index = index_w.c_str();
-    OutputDebugString(re_index);
-}
-//solve for the closest point to a set of lines using least squares -- we use this as our corner.
-void CBodyBasics::findIntersections(uint32_t index) {
-    //solve for intersections of   
+    RECT rct;
+    GetClientRect(GetDlgItem(m_hWnd, IDC_VIDEOVIEW), &rct);
+    int width = rct.right;
+    int height = rct.bottom;
+    m_pRenderTarget->DrawEllipse(ellipse, m_intersectionPointerBrush, 10.0f);
+    m_pRenderTarget->FillEllipse(ellipse, m_intersectionPointerBrush);  
 
     std::vector<Eigen::Vector3f> cornerSolutions;
     //setup linear system
@@ -717,12 +705,6 @@ void CBodyBasics::calibration(IBody* pBody, uint32_t i) {
     bool point = isPointing(direction, i);
 
     if (point && pointingInfo[i].firstPointer == false) {
-       /** switch (i % 4) {
-        case 0:
-            OutputDebugString(L"Point in the top right");
-            break;
-        case 1:
-            OutputDebugString(L"Point to the top right corner of the screen");*/
         
         pointingInfo[i].firstPointer = true;
         pointingInfo[i].startingPoints = new Eigen::Vector3f(direction);
@@ -777,6 +759,8 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
             if (SUCCEEDED(hr) && tracked) {
                 //want to get the left arm, i.e., left-wrist - left-elbow of this body
                 if (pointingInfo[i].calibrated == false) {
+                    //check to see if the screen plane has already been stored.
+                    //FILE *file = fopen("Plane.ply", )
                     calibration(pBody, i);
                 }
                 else {
@@ -972,6 +956,7 @@ HRESULT CBodyBasics::EnsureDirect2DResources()
         m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Red, 0.5f), &m_pBrushHandClosed);
         m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Green, 0.5f), &m_pBrushHandOpen);
         m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Blue, 0.5f), &m_pBrushHandLasso);
+        m_pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::MediumVioletRed, 1.0f), &m_intersectionPointerBrush);
     }
 
     return hr;
