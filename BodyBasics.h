@@ -93,8 +93,11 @@ private:
     DWORD                   m_nFramesSinceUpdate;
     std::vector<PointingInfo> pointingInfo;
     std::vector<std::vector<Eigen::Vector3f>> cornersForFrames;
+
     Eigen::Vector3f* previous = nullptr;
+    Eigen::Matrix3f planeRotationMatrix;
     Eigen::Vector3f centroid;
+
     bool firstPoint = false;
     bool savePlane = false;
     Eigen::Vector3f* startingPoint = nullptr;

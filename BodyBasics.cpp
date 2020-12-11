@@ -468,6 +468,7 @@ void CBodyBasics::savePlaneToPly(int samples, IBody* pBody) {
     plane.write("Plane.ply");
 }
 
+
 void CBodyBasics::approximateScreenPlane(uint32_t index) {
 
     //need to iterate this at some point
@@ -572,10 +573,10 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
 
     //point == leftArm
 
-  
+
 
    // lSquares << mat[0], mat[1], mat[2], mat[3], mat[4], mat[5], mat[6], mat[7], mat[8];
-            
+
     //direction == direction
 
     //defines line leftArm + t*direction
@@ -604,8 +605,10 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     int width = rct.right;
     int height = rct.bottom;
     m_pRenderTarget->DrawEllipse(ellipse, m_intersectionPointerBrush, 10.0f);
-    m_pRenderTarget->FillEllipse(ellipse, m_intersectionPointerBrush);  
+    m_pRenderTarget->FillEllipse(ellipse, m_intersectionPointerBrush);
+}
 
+void CBodyBasics::findIntersections(uint32_t index){
     std::vector<Eigen::Vector3f> cornerSolutions;
     //setup linear system
    
@@ -670,6 +673,8 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     p.write("LineSystem.ply");
     cornersForFrames[index] = cornerSolutions;
 } 
+
+
 void CBodyBasics::writeScreenLSQ(IBody* pBody, uint32_t index) {
     std::vector<Vertex> things;
 
@@ -768,7 +773,7 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
                         std::wstring index_w = s2ws("Finding screen plane");
                         LPCWSTR re_index = index_w.c_str();
                         OutputDebugString(re_index);                        
-                        findIntersections(i);
+                        //findIntersections(i);
                         //followed by find screen plane
                         approximateScreenPlane(i);
                         writeScreenLSQ(pBody, i);
