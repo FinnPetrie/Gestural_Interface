@@ -533,17 +533,19 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
         -uTwo * sinTheta, uOne* sinTheta, cosTheta;
 
 
-    
+    planeRotationMatrix = rotationMat;
 
 
     Eigen::Vector3f i = U.col(0).cast<float>();
     Eigen::Vector3f j = U.col(1).cast<float>();
     std::vector<Eigen::Vector3f> planePoints;
-    for (float x = -1; x < 1; x += 0.1) {
+    for (float x = -1; x < 1; x += 0.1) {  
         for (float y = -1; y < 1; y += 0.1) {
             Eigen::Vector3f point = (x)*i.normalized() + (y)*j + centroid;
+            point -= centroid;
+            Eigen::Vector3f p = planeRotationMatrix * point;
             glm::vec3 glPoint(point.x(), point.y(), point.z());
-            planePoints.push_back(point);
+            planePoints.push_back(p);
         }
     }
 
@@ -606,6 +608,7 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     int height = rct.bottom;
     m_pRenderTarget->DrawEllipse(ellipse, m_intersectionPointerBrush, 10.0f);
     m_pRenderTarget->FillEllipse(ellipse, m_intersectionPointerBrush);
+    m_pRenderTarget->EndDraw();
 }
 
 void CBodyBasics::findIntersections(uint32_t index){
@@ -773,7 +776,7 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
                         std::wstring index_w = s2ws("Finding screen plane");
                         LPCWSTR re_index = index_w.c_str();
                         OutputDebugString(re_index);                        
-                        //findIntersections(i);
+                        findIntersections(i);
                         //followed by find screen plane
                         approximateScreenPlane(i);
                         writeScreenLSQ(pBody, i);
