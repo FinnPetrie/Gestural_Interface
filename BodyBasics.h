@@ -37,6 +37,12 @@ struct PointingInfo {
 
 };
 
+struct Plane {
+    Eigen::Vector3f u;
+    Eigen::Vector3f v;
+    Eigen::Vector3f normal;
+};
+
 
 class CBodyBasics
 {

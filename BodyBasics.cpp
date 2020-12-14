@@ -501,7 +501,7 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
     OutputDebugString(re_index);
 
 
-   Eigen::JacobiSVD<Eigen::Matrix3Xd> svd = corners.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::JacobiSVD<Eigen::Matrix3Xd> svd = corners.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
     Eigen::MatrixXd V = svd.matrixV();
     Eigen::MatrixXd U = svd.matrixU();
     OutputDebugString(L"Matrix V\n");
@@ -514,11 +514,39 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
     screenPlane = Eigen::Hyperplane<float, 3>::Through(U.col(0).cast<float>(), U.col(1).cast<float>());
     pointingInfo[index].screenPlaneFound = true;
 
+    Eigen::Vector3f i = U.col(0).cast<float>();
+    Eigen::Vector3f j = U.col(1).cast<float>();
+    Eigen::Vector3f xyNormal, screenPlaneNormal, rotationVector;
+
+    xyNormal[0] = 0.0f;
+    xyNormal[1] = 0.0f;
+    xyNormal[2] = 1.0f;
+
+    Eigen::Vector4f coeffs = screenPlane.coeffs();
+
+   // screenPlaneNormal[0] = coeffs[0];
+    //screenPlaneNormal[1] = coeffs[1];
+    //screenPlaneNormal[2] = coeffs[2];
+    screenPlaneNormal = i.cross(j).normalized();
+    //Eigen::Vector3f screenPlaneNormal = screenPlane.normal();
+    OutputDebugString(L"\n\nPlane normal");
+    printMat(screenPlaneNormal.cast<float>());
+    OutputDebugString(L"\n\n");
+
+    rotationVector = xyNormal.cross(screenPlaneNormal).normalized();
+   // rotationVector = rotationVector.norm();
+    float theta = -acos(xyNormal.dot(screenPlaneNormal));
+    
+    //-atan2(rotationVector.norm(), xyPlaneNormal.dot(screenPlaneNormal));
+
+    Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+    transform.rotate(Eigen::AngleAxisf(theta, rotationVector));
+    //transform.translation << 0, 0, 0;
     //compute rotation matrix
     Eigen::Matrix3f rotationMat = Eigen::Matrix3f::Identity();
-    Eigen::Vector4f coeffs = screenPlane.coeffs();
+   // Eigen::Vector4f coeffs = screenPlane.coeffs();
     
-    float aSquared = pow(coeffs.x(), 2);
+   /* float aSquared = pow(coeffs.x(), 2);
     float bSquared = pow(coeffs.y(), 2);
     float cSquared = pow(coeffs.z(), 2);
     float cosTheta = coeffs.z() / (sqrt(aSquared + bSquared + cSquared));
@@ -527,23 +555,22 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
     float uTwo = -coeffs.x() / (sqrt(aSquared + bSquared + cSquared));
 
 
-    //need to also translate the pal
+    //need to also translate the plane
     rotationMat << cosTheta + uOne * uOne * (1 - cosTheta), uOne* uTwo* (1 - cosTheta), uTwo* sinTheta,
-        uOne* uTwo* (1 - cosTheta), cosTheta* uTwo* uTwo* (1 - cosTheta), -uOne * sinTheta,
-        -uTwo * sinTheta, uOne* sinTheta, cosTheta;
+    uOne* uTwo* (1 - cosTheta), cosTheta* uTwo* uTwo* (1 - cosTheta), -uOne * sinTheta,
+    -uTwo * sinTheta, uOne* sinTheta, cosTheta;
 
 
-    planeRotationMatrix = rotationMat;
+    planeRotationMatrix = rotationMat;*/
 
 
-    Eigen::Vector3f i = U.col(0).cast<float>();
-    Eigen::Vector3f j = U.col(1).cast<float>();
+    
     std::vector<Eigen::Vector3f> planePoints;
     for (float x = -1; x < 1; x += 0.1) {  
         for (float y = -1; y < 1; y += 0.1) {
-            Eigen::Vector3f point = (x)*i.normalized() + (y)*j + centroid;
-            point -= centroid;
-            Eigen::Vector3f p = planeRotationMatrix * point;
+            Eigen::Vector3f point = (x)*i.normalized() + (y)*j.normalized() + centroid;
+            //  point -= centroid;
+            Eigen::Vector3f p =  point;
             glm::vec3 glPoint(point.x(), point.y(), point.z());
             planePoints.push_back(p);
         }
@@ -785,11 +812,9 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
                     findPointerInPlane(pBody, i);
                     OutputDebugString(L"Finding plane");
                     if (!savePlane) {
-                        
                        // savePlaneToPly(60, pBody);
                         savePlane = true;
                     }
-                    
                 }
             }
         }
