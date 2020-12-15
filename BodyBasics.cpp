@@ -87,7 +87,7 @@ CBodyBasics::~CBodyBasics()
 
     // done with coordinate mapper
     SafeRelease(m_pCoordinateMapper);
-
+    
     // close the Kinect Sensor
     if (m_pKinectSensor)
     {
@@ -511,13 +511,15 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
     OutputDebugString(L"Matrix U: \n");
     printMat(U.cast<float>());
     OutputDebugString(L"\n");
-    screenPlane = Eigen::Hyperplane<float, 3>::Through(U.col(0).cast<float>(), U.col(1).cast<float>());
+    screenPlane = Eigen::Hyperplane<float, 3>::Through(U.col(0).cast<float>(), U.col(1).cast<float>(), U.col(0).cast<float>() - U.col(1).cast<float>());
     pointingInfo[index].screenPlaneFound = true;
 
     Eigen::Vector3f i = U.col(0).cast<float>();
     Eigen::Vector3f j = U.col(1).cast<float>();
     Eigen::Vector3f xyNormal, screenPlaneNormal, rotationVector;
-
+    screen.u = i;
+    screen.v = j;
+    screen.translation = centroid;
     xyNormal[0] = 0.0f;
     xyNormal[1] = 0.0f;
     xyNormal[2] = 1.0f;
@@ -528,6 +530,8 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
     //screenPlaneNormal[1] = coeffs[1];
     //screenPlaneNormal[2] = coeffs[2];
     screenPlaneNormal = i.cross(j).normalized();
+    screen.normal = screenPlaneNormal;
+
     //Eigen::Vector3f screenPlaneNormal = screenPlane.normal();
     OutputDebugString(L"\n\nPlane normal");
     printMat(screenPlaneNormal.cast<float>());
@@ -586,6 +590,35 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
     PlyFile p(vertices);
     p.write("Plane.ply");
 
+    findScreenHomography(index);
+
+}
+
+void CBodyBasics::findScreenHomography(uint32_t index) {
+    std::vector<cv::Point2f> screenSpacePoints = {
+      cv::Point2f(0,0),
+      cv::Point2f(WIDTH, 0),
+      cv::Point2f(0, HEIGHT),
+      cv::Point2f(WIDTH, HEIGHT)
+    };
+
+
+    //project the screen points to the plane
+    std::vector<cv::Point2f> projPoints;
+    for (int i = 0; i < cornersForFrames[index].size(); i++) {
+        float distance = cornersForFrames[index][i].dot(screen.normal);
+        Eigen::Vector3f nProjected = screen.normal * distance;
+        Eigen::Vector3f projected = cornersForFrames[index][i] - nProjected;
+        //map it to the xy-plane
+        projected = screen.transformation * projected;
+        //remove their z component
+
+        projPoints.push_back(cv::Point2f(projected.x(), projected.y()));
+    }
+
+    homography = cv::findHomography(projPoints, screenSpacePoints);
+
+    
 
 }
 
@@ -597,9 +630,21 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     HRESULT hr = pBody->GetJoints(_countof(joints), joints);
     Eigen::Vector3f leftArm(joints[JointType_WristLeft].Position.X, joints[JointType_WristLeft].Position.Y, joints[JointType_WristLeft].Position.Z);
     Eigen::Vector3f leftElbow(joints[JointType_ElbowLeft].Position.X, joints[JointType_ElbowLeft].Position.Y, joints[JointType_ElbowLeft].Position.Z);
-    Eigen::Vector3f direction = leftArm - leftElbow;
+    Eigen::Vector3f direction = (leftArm - leftElbow).normalized();
 
 
+    //solve for t
+    float t = -(leftElbow.dot(screen.normal)) / direction.dot(screen.normal);
+
+    Eigen::Vector3f intersection = leftElbow + t * direction;
+
+    //map to xy-plane
+
+    intersection = screen.transformation * intersection;
+    std::vector<cv::Point2f> inter = { cv::Point2f(intersection.x(), intersection.y()) };
+    std::vector<cv::Point2f> screenIntersection;
+    cv::perspectiveTransform(inter, screenIntersection, homography);
+    //cv::Point2f screenIntersection = homography.mul(cv::Point2f(intersection.x(), intersection.y()));
     //point == leftArm
 
 
@@ -611,19 +656,19 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     //defines line leftArm + t*direction
     //find intersection with screenPlane
 
-    Eigen::ParametrizedLine<float, 3> pointingDirection = Eigen::ParametrizedLine<float, 3>::Through(leftElbow, leftArm);
+  /**  Eigen::ParametrizedLine<float, 3> pointingDirection = Eigen::ParametrizedLine<float, 3>::Through(leftElbow, leftArm);
 
     double parameter_step = pointingDirection.intersection(screenPlane);
     Eigen::Vector3f intersection = parameter_step * ((leftArm - leftElbow).normalized()) + leftElbow;
-    std::cout << intersection << std::endl;
+    std::cout << intersection << std::endl;**/
 
     std::stringstream ss;
-    ss << intersection;
+    ss << screenIntersection[0];
     std::wstring index_w = s2ws(ss.str());
     LPCWSTR re_index = index_w.c_str();
     OutputDebugString(re_index);
-    float x = intersection.x();
-    float y = intersection.y();
+    float x = screenIntersection[0].x;
+    float y = screenIntersection[0].y;
     D2D1_POINT_2F point = D2D1::Point2F(x, y);
     D2D1_ELLIPSE ellipse = D2D1::Ellipse(point, 1, 1);
     m_pRenderTarget->BeginDraw();

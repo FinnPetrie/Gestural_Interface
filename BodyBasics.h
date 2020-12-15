@@ -37,10 +37,15 @@ struct PointingInfo {
 
 };
 
+//parametric form of a plane
 struct Plane {
     Eigen::Vector3f u;
     Eigen::Vector3f v;
     Eigen::Vector3f normal;
+
+    Eigen::Vector3f translation;
+    //transform that maps an element of the plane to the xy-plane (necessary to simplify homography computation)
+    Eigen::Affine3f transformation;
 };
 
 
@@ -103,7 +108,8 @@ private:
     Eigen::Vector3f* previous = nullptr;
     Eigen::Matrix3f planeRotationMatrix;
     Eigen::Vector3f centroid;
-
+    cv::Mat homography;
+    Plane screen;
     bool firstPoint = false;
     bool savePlane = false;
     Eigen::Vector3f* startingPoint = nullptr;
@@ -136,6 +142,7 @@ private:
     void                    approximateScreenPlane(uint32_t index);
     void                    findPointerInPlane(IBody* pBody, uint32_t index);
     void                    findIntersections(uint32_t index);
+    void                    findScreenHomography(uint32_t index);
     /// <summary>
     /// Main processing function
     /// </summary>
