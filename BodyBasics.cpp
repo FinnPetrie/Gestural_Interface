@@ -200,6 +200,8 @@ void CBodyBasics::GesturalUpdate() {
             //find arms
             calculatePointing(nTime, BODY_COUNT, ppBodies);
             ProcessBody(nTime, BODY_COUNT, ppBodies);
+            drawCursor();
+
           //  ProcessBody(nTime, BODY_COUNT, ppBodies);
         }
 
@@ -211,7 +213,6 @@ void CBodyBasics::GesturalUpdate() {
 
     SafeRelease(pBodyFrame);
 
-
 }
 /// <summary>
 /// Main processing function
@@ -219,8 +220,7 @@ void CBodyBasics::GesturalUpdate() {
 /// 
 /// 
 void CBodyBasics::Update()
-{
-    if (!m_pBodyFrameReader)
+{  
     {
         return;
     }
@@ -422,6 +422,19 @@ bool CBodyBasics::isPointing(Eigen::Vector3f current, uint32_t index) {
 }
 
 
+void CBodyBasics::drawCursor() {
+    D2D1_ELLIPSE ellipse = D2D1::Ellipse(cursor, 1, 1);
+    m_pRenderTarget->BeginDraw();
+    //m_pRenderTarget->Clear();
+
+    RECT rct;
+    GetClientRect(GetDlgItem(m_hWnd, IDC_VIDEOVIEW), &rct);
+    int width = rct.right;
+    int height = rct.bottom;
+    m_pRenderTarget->DrawEllipse(ellipse, m_intersectionPointerBrush, 10.0f);
+    m_pRenderTarget->FillEllipse(ellipse, m_intersectionPointerBrush);
+    m_pRenderTarget->EndDraw();
+}
 
 void CBodyBasics::savePlaneToPly(int samples, IBody* pBody) {
     std::vector<Eigen::Vector3f> planePoints;
@@ -545,77 +558,88 @@ void CBodyBasics::approximateScreenPlane(uint32_t index) {
 
     Eigen::Affine3f transform = Eigen::Affine3f::Identity();
     transform.rotate(Eigen::AngleAxisf(theta, rotationVector));
-    //transform.translation << 0, 0, 0;
-    //compute rotation matrix
+    screen.transformation = transform;
+
     Eigen::Matrix3f rotationMat = Eigen::Matrix3f::Identity();
-   // Eigen::Vector4f coeffs = screenPlane.coeffs();
-    
-   /* float aSquared = pow(coeffs.x(), 2);
-    float bSquared = pow(coeffs.y(), 2);
-    float cSquared = pow(coeffs.z(), 2);
-    float cosTheta = coeffs.z() / (sqrt(aSquared + bSquared + cSquared));
-    float sinTheta = sqrt((aSquared + bSquared) / (aSquared + bSquared + cSquared));
-    float uOne = coeffs.y() / (sqrt(aSquared + bSquared + cSquared));
-    float uTwo = -coeffs.x() / (sqrt(aSquared + bSquared + cSquared));
 
-
-    //need to also translate the plane
-    rotationMat << cosTheta + uOne * uOne * (1 - cosTheta), uOne* uTwo* (1 - cosTheta), uTwo* sinTheta,
-    uOne* uTwo* (1 - cosTheta), cosTheta* uTwo* uTwo* (1 - cosTheta), -uOne * sinTheta,
-    -uTwo * sinTheta, uOne* sinTheta, cosTheta;
-
-
-    planeRotationMatrix = rotationMat;*/
 
 
     
     std::vector<Eigen::Vector3f> planePoints;
+    std::vector<Eigen::Vector3f> rotatePlane;
+
     for (float x = -1; x < 1; x += 0.1) {  
         for (float y = -1; y < 1; y += 0.1) {
             Eigen::Vector3f point = (x)*i.normalized() + (y)*j.normalized() + centroid;
             //  point -= centroid;
             Eigen::Vector3f p =  point;
+            Eigen::Vector3f t = transform * (point - centroid);
             glm::vec3 glPoint(point.x(), point.y(), point.z());
             planePoints.push_back(p);
+            rotatePlane.push_back(t);
         }
     }
 
     std::vector<Vertex> vertices;
+    std::vector<Vertex> rotateVertices;
+
     for (int i = 0; i < planePoints.size(); i++) {
         Eigen::Vector3d vert = planePoints[i].cast<double>();
+        Eigen::Vector3d rot = rotatePlane[i].cast<double>();
+
         Vertex v = { vert, Eigen::Vector3i(255, 0, 0), Eigen::Vector3d(0,0,0) };
         vertices.push_back(v);
+        Vertex t = { rot, Eigen::Vector3i(128, 128, 0), Eigen::Vector3d(0,0,0) };
+        rotateVertices.push_back(t);
     }
     
     PlyFile p(vertices);
     p.write("Plane.ply");
+    PlyFile q(rotateVertices);
+    q.write("RotatePlane.ply");
 
     findScreenHomography(index);
 
 }
 
 void CBodyBasics::findScreenHomography(uint32_t index) {
+    RECT rct;
+
+    GetClientRect(GetDlgItem(m_hWnd, IDC_VIDEOVIEW), &rct);
+    int width = rct.right;
+    int height = rct.bottom;
     std::vector<cv::Point2f> screenSpacePoints = {
       cv::Point2f(0,0),
-      cv::Point2f(WIDTH, 0),
-      cv::Point2f(0, HEIGHT),
-      cv::Point2f(WIDTH, HEIGHT)
+      cv::Point2f(width, 0),
+      cv::Point2f(0, height),
+      cv::Point2f(width, height)
     };
 
 
     //project the screen points to the plane
     std::vector<cv::Point2f> projPoints;
+    std::vector<Vertex> verts;
+    std::vector<Vertex> rotatedVerts;
+
     for (int i = 0; i < cornersForFrames[index].size(); i++) {
         float distance = cornersForFrames[index][i].dot(screen.normal);
         Eigen::Vector3f nProjected = screen.normal * distance;
         Eigen::Vector3f projected = cornersForFrames[index][i] - nProjected;
+       // projected
+        Vertex t = { projected.cast<double>(), Eigen::Vector3i(255, 0, 255), Eigen::Vector3d(0,0,0) };
+        verts.push_back(t);
         //map it to the xy-plane
         projected = screen.transformation * projected;
         //remove their z component
-
+        Vertex ro = { projected.cast<double>(), Eigen::Vector3i(0, 255, 255), Eigen::Vector3d(0,0,0) };
+        rotatedVerts.push_back(ro);
         projPoints.push_back(cv::Point2f(projected.x(), projected.y()));
     }
 
+    PlyFile rot(rotatedVerts);
+    PlyFile porj(verts);
+    rot.write("ProjectedRotatedPoints.ply");
+    porj.write("ProjectedPoints.ply");
     homography = cv::findHomography(projPoints, screenSpacePoints);
 
     
@@ -637,6 +661,13 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     float t = -(leftElbow.dot(screen.normal)) / direction.dot(screen.normal);
 
     Eigen::Vector3f intersection = leftElbow + t * direction;
+    //
+    Vertex v = { intersection.cast<double>(), Eigen::Vector3i(0,255, 0), Eigen::Vector3d(0,0,0) };
+
+    std::vector<Vertex> ply;
+    ply = { v };
+    PlyFile p(ply);
+    p.write("IntersectionPoint.ply");
 
     //map to xy-plane
 
@@ -644,23 +675,7 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     std::vector<cv::Point2f> inter = { cv::Point2f(intersection.x(), intersection.y()) };
     std::vector<cv::Point2f> screenIntersection;
     cv::perspectiveTransform(inter, screenIntersection, homography);
-    //cv::Point2f screenIntersection = homography.mul(cv::Point2f(intersection.x(), intersection.y()));
-    //point == leftArm
-
-
-
-   // lSquares << mat[0], mat[1], mat[2], mat[3], mat[4], mat[5], mat[6], mat[7], mat[8];
-
-    //direction == direction
-
-    //defines line leftArm + t*direction
-    //find intersection with screenPlane
-
-  /**  Eigen::ParametrizedLine<float, 3> pointingDirection = Eigen::ParametrizedLine<float, 3>::Through(leftElbow, leftArm);
-
-    double parameter_step = pointingDirection.intersection(screenPlane);
-    Eigen::Vector3f intersection = parameter_step * ((leftArm - leftElbow).normalized()) + leftElbow;
-    std::cout << intersection << std::endl;**/
+    
 
     std::stringstream ss;
     ss << screenIntersection[0];
@@ -669,8 +684,16 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     OutputDebugString(re_index);
     float x = screenIntersection[0].x;
     float y = screenIntersection[0].y;
+    
     D2D1_POINT_2F point = D2D1::Point2F(x, y);
-    D2D1_ELLIPSE ellipse = D2D1::Ellipse(point, 1, 1);
+    float xoffset = x - cursor.x;
+    float yoffset = y - cursor.y;
+
+    cursor.x += xoffset * 0.1;
+    cursor.y += yoffset * 0.1;
+    
+
+    /*D2D1_ELLIPSE ellipse = D2D1::Ellipse(point, 1, 1);
     m_pRenderTarget->BeginDraw();
     //m_pRenderTarget->Clear();
 
@@ -680,7 +703,7 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     int height = rct.bottom;
     m_pRenderTarget->DrawEllipse(ellipse, m_intersectionPointerBrush, 10.0f);
     m_pRenderTarget->FillEllipse(ellipse, m_intersectionPointerBrush);
-    m_pRenderTarget->EndDraw();
+    m_pRenderTarget->EndDraw();*/
 }
 
 void CBodyBasics::findIntersections(uint32_t index){

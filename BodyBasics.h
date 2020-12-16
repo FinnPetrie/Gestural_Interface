@@ -110,6 +110,11 @@ private:
     Eigen::Vector3f centroid;
     cv::Mat homography;
     Plane screen;
+
+    D2D1_POINT_2F cursor = D2D1::Point2F(0, 0);
+
+
+
     bool firstPoint = false;
     bool savePlane = false;
     Eigen::Vector3f* startingPoint = nullptr;
@@ -136,6 +141,7 @@ private:
     ID2D1SolidColorBrush*   m_pBrushHandLasso;
     ID2D1SolidColorBrush*   m_intersectionPointerBrush;
 
+    void                    drawCursor();
     void                    writeScreenLSQ(IBody* pBody, uint32_t index);
     void                    savePlaneToPly(int samples, IBody* pBody);
     void                    calibration(IBody* pBody, uint32_t index);
