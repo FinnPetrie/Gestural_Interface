@@ -783,19 +783,35 @@ void CBodyBasics::writeScreenLSQ(IBody* pBody, uint32_t index) {
         things.push_back(v);
     }
 
-    Joint joints[JointType_Count];
+   /* Joint joints[JointType_Count];
     HRESULT hr = pBody->GetJoints(_countof(joints), joints);
 
     for (int i = 0; i < JointType_Count; i++) {
         Eigen::Vector3d joint(joints[i].Position.X, joints[i].Position.Y, joints[i].Position.Z);
         Vertex v = { joint, Eigen::Vector3i(0, 255, 0), Eigen::Vector3d(0,0,0) };
         things.push_back(v);
-    }
+    }*/
 
     PlyFile corners(things);
     corners.write("Corners.ply");
 }
 
+
+bool CBodyBasics::readScreenCoords(uint32_t index) {
+    //check if PlyFile exists
+    PlyFile corners("Corners.ply");
+    if (corners.check("Corners.ply")) {
+        //go ahead
+        for (int i = 0; i < 4; i++) {
+            Eigen::Vector3d corner = corners[i].location;
+            cornersForFrames[index].push_back(corner.cast<float>());
+        }
+        return true;
+    }
+    else {
+        return false;
+    }
+}
 
 void CBodyBasics::calibration(IBody* pBody, uint32_t i) {
     Joint joints[JointType_Count];
@@ -864,17 +880,27 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
                 if (pointingInfo[i].calibrated == false) {
                     //check to see if the screen plane has already been stored.
                     //FILE *file = fopen("Plane.ply", )
-                    calibration(pBody, i);
+                    if (!readScreenCoords()) {
+                        calibration(pBody, i);
+                    }
+                    else {
+                        read = true;
+                    }
                 }
                 else {
                     if (pointingInfo[i].screenPlaneFound == false) {
                         std::wstring index_w = s2ws("Finding screen plane");
                         LPCWSTR re_index = index_w.c_str();
-                        OutputDebugString(re_index);                        
-                        findIntersections(i);
+                        OutputDebugString(re_index);       
+                        if (!read) {
+                            findIntersections(i);
+                        }
                         //followed by find screen plane
                         approximateScreenPlane(i);
-                        writeScreenLSQ(pBody, i);
+                        
+                        if (!read) {
+                            writeScreenLSQ(pBody, i);
+                            }
                     }
                     //find the intersection of the pointing person with the screen plane
                     findPointerInPlane(pBody, i);

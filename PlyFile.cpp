@@ -192,6 +192,17 @@ void PlyFile::augment(PlyFile aug){
 }
 
 
+bool PlyFile::check(const std::string& filename) {
+	p_ply ply = ply_open(filename.c_str(), NULL, 0, NULL);
+	if (!ply) {
+		return false;
+	}
+	if (!ply_read_header(ply)) {
+		return false;
+	}
+	return true;
+}
+
 bool PlyFile::read(const std::string& filename){
 	p_ply ply = ply_open(filename.c_str(),NULL, 0, NULL);
 	if(!ply){

@@ -113,7 +113,8 @@ private:
 
     D2D1_POINT_2F cursor = D2D1::Point2F(0, 0);
 
-
+    //for reading in the screen plane
+    bool read = false;
 
     bool firstPoint = false;
     bool savePlane = false;
@@ -149,6 +150,7 @@ private:
     void                    findPointerInPlane(IBody* pBody, uint32_t index);
     void                    findIntersections(uint32_t index);
     void                    findScreenHomography(uint32_t index);
+    bool                    readScreenCoords(uint32_t index);
     /// <summary>
     /// Main processing function
     /// </summary>

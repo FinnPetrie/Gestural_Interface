@@ -84,7 +84,7 @@ public:
 
 		void clear();
 
-
+		bool check(const std::string& filename);
 
 		Eigen::Matrix3d changeOfBasis(Eigen::Matrix3d toBasis, Eigen::Matrix3d fromBasis);
 
