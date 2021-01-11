@@ -804,7 +804,7 @@ bool CBodyBasics::readScreenCoords(uint32_t index) {
         //go ahead
         for (int i = 0; i < 4; i++) {
             Eigen::Vector3d corner = corners[i].location;
-            cornersForFrames[index].push_back(corner.cast<float>());
+            cornersForFrames[index][i] = corner.cast<float>();
         }
         return true;
     }
@@ -880,11 +880,13 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
                 if (pointingInfo[i].calibrated == false) {
                     //check to see if the screen plane has already been stored.
                     //FILE *file = fopen("Plane.ply", )
-                    if (!readScreenCoords()) {
+                    if (!readScreenCoords(i)) {
                         calibration(pBody, i);
                     }
                     else {
+                        OutputDebugString(L"Read is true");
                         read = true;
+                        pointingInfo[i].calibrated = true;
                     }
                 }
                 else {
