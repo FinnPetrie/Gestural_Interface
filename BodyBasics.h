@@ -34,7 +34,7 @@ struct PointingInfo {
     std::vector<std::vector<Eigen::Vector3f>> points;
     std::vector<std::vector<Eigen::Vector3f>> directions;
     std::vector<std::vector<Eigen::Vector3f>> secondaryPoints;
-
+    D2D1_POINT_2F cursor = D2D1::Point2F(0, 0);
 };
 
 //parametric form of a plane
@@ -53,6 +53,9 @@ class CBodyBasics
 {
     static const int        cDepthWidth  = 512;
     static const int        cDepthHeight = 424;
+
+    static const int windowWidth = 2560;
+    static const int windowHeight = 1440;
 
 public:
     /// <summary>
@@ -111,11 +114,11 @@ private:
     cv::Mat homography;
     Plane screen;
 
-    D2D1_POINT_2F cursor = D2D1::Point2F(0, 0);
+  //  D2D1_POINT_2F cursor = D2D1::Point2F(0, 0);
 
     //for reading in the screen plane
     bool read = false;
-
+    bool homographyFound = false;
     bool firstPoint = false;
     bool savePlane = false;
     Eigen::Vector3f* startingPoint = nullptr;
@@ -141,8 +144,8 @@ private:
     ID2D1SolidColorBrush*   m_pBrushHandOpen;
     ID2D1SolidColorBrush*   m_pBrushHandLasso;
     ID2D1SolidColorBrush*   m_intersectionPointerBrush;
-
-    void                    drawCursor();
+    void                    drawCursors(int count, IBody** pBodies);
+    void                    drawCursor(uint32_t index);
     void                    writeScreenLSQ(IBody* pBody, uint32_t index);
     void                    savePlaneToPly(int samples, IBody* pBody);
     void                    calibration(IBody* pBody, uint32_t index);

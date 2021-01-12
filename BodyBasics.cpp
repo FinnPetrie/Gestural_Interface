@@ -200,7 +200,7 @@ void CBodyBasics::GesturalUpdate() {
             //find arms
             calculatePointing(nTime, BODY_COUNT, ppBodies);
             ProcessBody(nTime, BODY_COUNT, ppBodies);
-            drawCursor();
+            drawCursors(BODY_COUNT, ppBodies);
 
           //  ProcessBody(nTime, BODY_COUNT, ppBodies);
         }
@@ -421,9 +421,27 @@ bool CBodyBasics::isPointing(Eigen::Vector3f current, uint32_t index) {
     }
 }
 
+void CBodyBasics::drawCursors(int nBodyCount, IBody** ppBodies) {
+    for (int i = 0; i < nBodyCount; ++i)
+    {
+        IBody* pBody = ppBodies[i];
+        if (pBody)
+        {
+            BOOLEAN bTracked = false;
+            HRESULT hr = pBody->get_IsTracked(&bTracked);
 
-void CBodyBasics::drawCursor() {
-    D2D1_ELLIPSE ellipse = D2D1::Ellipse(cursor, 1, 1);
+            if (SUCCEEDED(hr) && bTracked)
+            {
+                drawCursor(i);
+
+            }
+        }
+    }
+}
+
+
+void CBodyBasics::drawCursor(uint32_t index) {
+    D2D1_ELLIPSE ellipse = D2D1::Ellipse(pointingInfo[index].cursor, 1, 1);
     m_pRenderTarget->BeginDraw();
     //m_pRenderTarget->Clear();
 
@@ -431,6 +449,7 @@ void CBodyBasics::drawCursor() {
     GetClientRect(GetDlgItem(m_hWnd, IDC_VIDEOVIEW), &rct);
     int width = rct.right;
     int height = rct.bottom;
+    
     m_pRenderTarget->DrawEllipse(ellipse, m_intersectionPointerBrush, 10.0f);
     m_pRenderTarget->FillEllipse(ellipse, m_intersectionPointerBrush);
     m_pRenderTarget->EndDraw();
@@ -686,11 +705,12 @@ void CBodyBasics::findPointerInPlane(IBody* pBody, uint32_t index) {
     float y = screenIntersection[0].y;
     
     D2D1_POINT_2F point = D2D1::Point2F(x, y);
-    float xoffset = x - cursor.x;
-    float yoffset = y - cursor.y;
-
-    cursor.x += xoffset * 0.1;
-    cursor.y += yoffset * 0.1;
+    float xoffset = x - pointingInfo[index].cursor.x;
+    float yoffset = y - pointingInfo[index].cursor.y;
+    pointingInfo[index].cursor.x = x;
+    pointingInfo[index].cursor.y = y;
+    //cursor.x = x;// += xoffset * 0.1;
+   // cursor.y = y; //+= yoffset * 0.1;
     
 
     /*D2D1_ELLIPSE ellipse = D2D1::Ellipse(point, 1, 1);
@@ -890,7 +910,7 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
                     }
                 }
                 else {
-                    if (pointingInfo[i].screenPlaneFound == false) {
+                    if (homographyFound == false) {
                         std::wstring index_w = s2ws("Finding screen plane");
                         LPCWSTR re_index = index_w.c_str();
                         OutputDebugString(re_index);       
@@ -903,6 +923,8 @@ void CBodyBasics::calculatePointing(INT64 nTime, int nBodyCount, IBody** ppBodie
                         if (!read) {
                             writeScreenLSQ(pBody, i);
                             }
+
+                        homographyFound = true;
                     }
                     //find the intersection of the pointing person with the screen plane
                     findPointerInPlane(pBody, i);
